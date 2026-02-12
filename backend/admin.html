@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DailyCalm Admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f6fbff; color:#073b4c; padding: 2rem; }
+    .card { background: #fff; padding: 1.2rem; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); max-width:600px; margin:auto }
+    input[type=text] { width:100%; padding:0.6rem; margin:0.6rem 0; border-radius:8px; border:1px solid #cfe7f3 }
+    button { background:#7ec8e3; color:#fff; border:none; padding:0.6rem 1rem; border-radius:8px; cursor:pointer; margin-right:0.5rem }
+    button.danger { background:#ff7b7b }
+    pre { background:#f0faff; padding:0.8rem; border-radius:8px; overflow:auto }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>DailyCalm Admin</h2>
+    <p>Enter the admin secret to export or clear the activity log.</p>
+    <label>Admin secret</label>
+    <input id="secret" type="text" placeholder="Enter secret" />
+    <div style="margin-top:0.6rem">
+      <button id="exportBtn">Export log</button>
+      <button id="clearBtn" class="danger">Clear log</button>
+      <button id="auditBtn">View Audit</button>
+    </div>
+    <div style="margin-top:1rem">
+      <h3>Filters</h3>
+      <div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.6rem">
+        <label style="min-width:70px">Action</label>
+        <select id="filterAction">
+          <option value="">(any)</option>
+          <option value="page_view">page_view</option>
+          <option value="export">export</option>
+          <option value="clear">clear</option>
+          <option value="audit_view">audit_view</option>
+        </select>
+        <label style="min-width:50px; margin-left:8px">From</label>
+        <input id="filterFrom" type="date" />
+        <label style="min-width:30px; margin-left:8px">To</label>
+        <input id="filterTo" type="date" />
+        <button id="applyFilter">Apply</button>
+        <label style="min-width:60px; margin-left:8px">Page size</label>
+        <select id="pageSizeSelect">
+          <option value="10">10</option>
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <button id="downloadCsv">Download CSV</button>
+      </div>
+
+      <h3>Output</h3>
+      <pre id="output">No action yet.</pre>
+    </div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    function getSecret() { return document.getElementById('secret').value.trim(); }
+
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+      const s = getSecret();
+      if (!s) return output.textContent = 'Please enter the secret.';
+      try {
+        const res = await fetch('/api/admin/export?secret=' + encodeURIComponent(s));
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({error:res.statusText}));
+          output.textContent = 'Error: ' + (err.error || res.statusText);
+          return;
+        }
+        // Try to download file if present
+        const blob = await res.blob();
+        const text = await blob.text();
+        // If response is JSON text, show it. Also offer download.
+        output.textContent = text.slice(0, 10000);
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url; a.download = 'activity-log.json'; a.textContent = 'Download file';
+        output.appendChild(document.createTextNode('\n\n'));
+        output.appendChild(a);
+      } catch (err) {
+        output.textContent = 'Fetch failed: ' + err.message;
+      }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', async () => {
+      const s = getSecret();
+      if (!s) return output.textContent = 'Please enter the secret.';
+      if (!confirm('Clear the activity log? This action cannot be undone.')) return;
+      try {
+        const res = await fetch('/api/admin/clear?secret=' + encodeURIComponent(s), { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) output.textContent = 'Error: ' + (data.error || res.statusText);
+        else output.textContent = (data.message || 'Cleared');
+      } catch (err) {
+        output.textContent = 'Fetch failed: ' + err.message;
+      }
+    });
+
+  let lastAuditEntries = [];
+  let currentPage = 0;
+  let currentPageSize = 25;
+
+    async function fetchAudit() {
+      const s = getSecret();
+      if (!s) return output.textContent = 'Please enter the secret.';
+      try {
+        output.textContent = 'Loading audit entries...';
+        const action = document.getElementById('filterAction').value;
+        const from = document.getElementById('filterFrom').value;
+        const to = document.getElementById('filterTo').value;
+  const params = new URLSearchParams();
+  params.set('count', '200');
+  params.set('secret', s);
+  params.set('page', String(currentPage));
+  params.set('pageSize', String(currentPageSize));
+        if (action) params.set('action', action);
+        if (from) params.set('from', new Date(from).toISOString());
+        if (to) params.set('to', new Date(to).toISOString());
+        const res = await fetch('/api/admin/audit?' + params.toString());
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({error:res.statusText}));
+          output.textContent = 'Error: ' + (err.error || res.statusText);
+          return;
+        }
+        const data = await res.json();
+        if (!data.entries || data.entries.length === 0) {
+          output.textContent = 'No audit entries.';
+          lastAuditEntries = [];
+          return;
+        }
+  lastAuditEntries = data.entries;
+        // Build a readable view
+        const lines = data.entries.map(e => {
+          const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : 'n/a';
+          const meta = e.meta ? JSON.stringify(e.meta) : '';
+          return `[${ts}] ${e.action} ${meta} ${e.ip || ''} ${e.ua || ''}`;
+        });
+        output.textContent = lines.join('\n');
+        // Update pagination UI and disable controls when out of range
+        const pageInfoEl = document.getElementById('pageInfo');
+        if (pageInfoEl) {
+          const totalPages = Math.max(1, Math.ceil((data.total || 0) / data.pageSize));
+          pageInfoEl.textContent = `Page ${data.page + 1} / ${totalPages} — ${data.total} total`;
+          // Disable/enable prev/next
+          prevBtn.disabled = (data.page || 0) <= 0;
+          nextBtn.disabled = (data.page || 0) >= (totalPages - 1);
+        }
+      } catch (err) {
+        output.textContent = 'Fetch failed: ' + err.message;
+      }
+    }
+
+  document.getElementById('applyFilter').addEventListener('click', () => { currentPage = 0; fetchAudit(); });
+    document.getElementById('auditBtn').addEventListener('click', fetchAudit);
+
+  document.getElementById('pageSizeSelect').addEventListener('change', (e) => { currentPageSize = parseInt(e.target.value, 10); currentPage = 0; fetchAudit(); });
+
+  // Pagination controls
+  const prevBtn = document.createElement('button'); prevBtn.textContent = 'Prev'; prevBtn.style.marginLeft='8px';
+  const nextBtn = document.createElement('button'); nextBtn.textContent = 'Next'; nextBtn.style.marginLeft='4px';
+  const pageInfo = document.createElement('span'); pageInfo.id = 'pageInfo'; pageInfo.style.marginLeft='8px';
+  document.querySelector('.card > div:nth-child(3)') && document.querySelector('.card > div:nth-child(3)').appendChild(prevBtn);
+  document.querySelector('.card > div:nth-child(3)') && document.querySelector('.card > div:nth-child(3)').appendChild(nextBtn);
+  document.querySelector('.card > div:nth-child(3)') && document.querySelector('.card > div:nth-child(3)').appendChild(pageInfo);
+
+  prevBtn.addEventListener('click', () => { if (currentPage>0) { currentPage--; fetchAudit(); } });
+  nextBtn.addEventListener('click', () => { currentPage++; fetchAudit(); });
+
+    document.getElementById('downloadCsv').addEventListener('click', () => {
+      if (!lastAuditEntries || lastAuditEntries.length === 0) return output.textContent = 'No entries to download.';
+      const cols = ['timestamp','action','ip','ua','meta'];
+      const rows = lastAuditEntries.map(e => ({
+        timestamp: e.timestamp || '',
+        action: e.action || '',
+        ip: e.ip || '',
+        ua: e.ua || '',
+        meta: e.meta ? JSON.stringify(e.meta) : ''
+      }));
+      const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => '"' + String(r[c] || '').replace(/"/g,'""') + '"').join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url; a.download = 'admin-audit.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>

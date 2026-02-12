@@ -1,0 +1,26 @@
+{
+  "appId": "com.mirrorapp.app",
+  "appName": "Mirror",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "capacitor",
+    "hostname": "localhost"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "useLegacyBridge": false
+  },
+  "ios": {
+    "minVersion": "12.0"
+  },
+  "cordova": {},
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}

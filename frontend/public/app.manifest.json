@@ -1,0 +1,30 @@
+{
+  "name": "Mirror",
+  "short_name": "Mirror",
+  "description": "A philosophical mood tracker. Reflect daily, understand yourself deeply.",
+  "version": "1.0.0",
+  "author": "Mirror App",
+  "homepage": "https://mirrorapp.com",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "background_color": "#0a0a0a",
+  "theme_color": "#1a1a1a",
+  "orientation": "portrait",
+  "categories": ["health", "lifestyle", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Check in",
+      "short_name": "Check in",
+      "description": "Start your daily mood reflection",
+      "url": "/?shortcut=checkin",
+      "icons": []
+    }
+  ],
+  "privacy_policy_url": "/privacy-policy",
+  "terms_of_service_url": "/terms",
+  "contact": {
+    "email": "support@mirrorapp.com",
+    "web": "https://mirrorapp.com"
+  }
+}
