@@ -166,6 +166,71 @@ app.get('/api/insights', (req, res) => {
   });
 });
 
+// Privacy policy page
+app.get('/privacy', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Mirror - Privacy Policy</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: Georgia, serif; background: #0a0a0a; color: #e0e0e0; padding: 2em; max-width: 700px; margin: 0 auto; line-height: 1.8; }
+        h1 { color: #a8a8a8; letter-spacing: 3px; font-weight: 300; text-transform: uppercase; }
+        h2 { color: #a8a8a8; font-weight: 300; margin-top: 2em; }
+        p, li { color: #c0c0c0; }
+        a { color: #a8a8a8; }
+      </style>
+    </head>
+    <body>
+      <h1>Privacy Policy</h1>
+      <p><strong>Last Updated: February 12, 2026</strong></p>
+
+      <h2>Overview</h2>
+      <p>Mirror is a minimalist mood tracking application that collects mood check-ins and optional email addresses for personalized philosophical insights.</p>
+
+      <h2>Data We Collect</h2>
+      <ul>
+        <li><strong>Mood Data:</strong> Your mood selections are stored on our servers with timestamps to generate insights.</li>
+        <li><strong>Email Addresses:</strong> If you provide an email, it is stored to enable "The Veil" — our monthly philosophical insights feature.</li>
+        <li><strong>Device Storage:</strong> Check-in counts and preferences are stored locally on your device using localStorage.</li>
+      </ul>
+
+      <h2>How We Use Your Data</h2>
+      <ul>
+        <li>Mood data is used to generate personalized philosophical insights.</li>
+        <li>Email addresses are used solely to send monthly personalized mood analysis.</li>
+        <li>We do not sell, share, or distribute your data to third parties.</li>
+        <li>We do not serve ads or use your data for advertising purposes.</li>
+      </ul>
+
+      <h2>Data Storage & Security</h2>
+      <ul>
+        <li>All data is stored securely on our servers hosted by Render.</li>
+        <li>Local device data is stored in your browser's localStorage.</li>
+        <li>We use HTTPS encryption for all data transmission.</li>
+      </ul>
+
+      <h2>Your Rights</h2>
+      <ul>
+        <li>You can request deletion of your data at any time.</li>
+        <li>You can opt out of The Veil emails at any time.</li>
+        <li>You may use the app without providing an email address.</li>
+      </ul>
+
+      <h2>Children's Privacy</h2>
+      <p>Mirror is not directed at children under 13. We do not knowingly collect data from children under 13.</p>
+
+      <h2>Contact</h2>
+      <p>For privacy concerns, contact: <a href="mailto:kytiasystems@gmail.com">kytiasystems@gmail.com</a></p>
+
+      <h2>Changes to This Policy</h2>
+      <p>We may update this privacy policy. Continued use of Mirror constitutes acceptance of any changes.</p>
+    </body>
+    </html>
+  `);
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'Mirror is watching.' });
