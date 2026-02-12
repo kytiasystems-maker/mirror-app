@@ -6,7 +6,7 @@
   "server": {
     "androidScheme": "https",
     "iosScheme": "capacitor",
-    "hostname": "localhost"
+    "url": "https://mirror-app-ujnr.onrender.com"
   },
   "android": {
     "allowMixedContent": true,
