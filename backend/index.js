@@ -3,6 +3,9 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const cron = require('node-cron');
+const { generateVeilInsight } = require('./lib/insights');
+const { sendVeilEmail } = require('./lib/veilMail');
 
 // Load environment variables
 require('dotenv').config();
@@ -78,9 +81,9 @@ let emailList = loadEmails();
 
 // Mood check-in endpoint
 app.post('/api/mood', (req, res) => {
-  const { mood, reflection } = req.body;
+  const { mood, reflection, userId } = req.body;
   if (mood) {
-    const entry = { mood, reflection, timestamp: Date.now() };
+    const entry = { mood, reflection, userId: userId || null, timestamp: Date.now() };
     moodLog.push(entry);
     saveMoods(moodLog);
     res.json({ success: true });
@@ -91,13 +94,18 @@ app.post('/api/mood', (req, res) => {
 
 // Email collection endpoint (for The Veil feature)
 app.post('/api/email', async (req, res) => {
-  const { email, mood } = req.body;
+  const { email, mood, userId } = req.body;
   if (email) {
-    const entry = { email, mood, timestamp: Date.now() };
-    emailList.push(entry);
+    // Avoid duplicates — update userId link if email already exists
+    const existing = emailList.find(e => e.email === email);
+    if (existing) {
+      existing.userId = userId || existing.userId;
+    } else {
+      emailList.push({ email, mood, userId: userId || null, timestamp: Date.now(), veilSentCount: 0, lastVeilAt: null });
+    }
     saveEmails(emailList);
 
-    // Send notification email
+    // Send internal notification (best-effort, non-blocking)
     try {
       await transporter.sendMail({
         from: `"Mirror App" <${process.env.SMTP_USER}>`,
@@ -113,7 +121,6 @@ app.post('/api/email', async (req, res) => {
           </div>
         `
       });
-      console.log(`Notification sent for new subscriber: ${email}`);
     } catch (err) {
       console.error('Failed to send notification email:', err.message);
     }
@@ -124,45 +131,43 @@ app.post('/api/email', async (req, res) => {
   }
 });
 
-// Get insights for premium users (The Veil)
+// Get personalized insight for a specific user (The Veil — on-demand preview)
 app.get('/api/insights', (req, res) => {
-  if (moodLog.length === 0) {
+  const { userId } = req.query;
+
+  if (!userId) {
     res.json({ insight: 'No data yet. Keep reflecting.' });
     return;
   }
 
-  // Analyze mood patterns
-  const last30Days = moodLog.filter(
-    entry => Date.now() - entry.timestamp < 30 * 24 * 60 * 60 * 1000
-  );
+  const result = generateVeilInsight(moodLog, userId);
 
-  const moodCounts = last30Days.reduce((acc, entry) => {
-    acc[entry.mood] = (acc[entry.mood] || 0) + 1;
-    return acc;
-  }, {});
+  if (!result) {
+    res.json({
+      insight: 'The Veil has not lifted yet. Keep showing up — it reveals itself after a week of honesty.',
+      ready: false
+    });
+    return;
+  }
 
-  const topMood = Object.keys(moodCounts).reduce((a, b) =>
-    moodCounts[a] > moodCounts[b] ? a : b
-  );
+  res.json({ ...result, ready: true });
+});
 
-  const philosophicalInsights = {
-    anxious: "You've faced uncertainty. Nietzsche would say this forges strength.",
-    angry: "Anger reveals what matters to you. Marcus Aurelius teaches discernment.",
-    calm: "Tranquility is rare and precious. Guard it.",
-    sad: "Your suffering is testing your character. You're becoming stronger.",
-    lost: "Not knowing is the first step to discovery.",
-    confused: "Confusion precedes clarity. Jung understood this.",
-    hopeful: "Hope keeps us caged. True freedom comes from acceptance.",
-    neutral: "Observation without judgment is wisdom."
-  };
+// Check whether the current user has unlocked The Veil and not yet been emailed
+app.get('/api/veil/status', (req, res) => {
+  const { userId } = req.query;
+  if (!userId) {
+    return res.status(400).json({ error: 'Missing userId' });
+  }
 
-  const insight = philosophicalInsights[topMood] || "Keep reflecting. Answers emerge in silence.";
+  const result = generateVeilInsight(moodLog, userId);
+  const subscriber = emailList.find(e => e.userId === userId);
 
   res.json({
-    moodsTested: Object.keys(moodCounts),
-    dominantMood: topMood,
-    daysTracked: last30Days.length,
-    insight
+    ready: !!result,
+    insight: result || null,
+    subscribed: !!subscriber,
+    veilSentCount: subscriber ? (subscriber.veilSentCount || 0) : 0
   });
 });
 
@@ -235,6 +240,51 @@ app.get('/privacy', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'Mirror is watching.' });
 });
+
+// --- The Veil: daily check for users who earned their insight ---
+async function runVeilCheck() {
+  let sentCount = 0;
+
+  for (const subscriber of emailList) {
+    if (!subscriber.userId || !subscriber.email) continue;
+
+    const result = generateVeilInsight(moodLog, subscriber.userId);
+    if (!result) continue;
+
+    // Re-send roughly every 14 days at most, to keep it rare
+    const now = Date.now();
+    const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+    if (subscriber.lastVeilAt && now - subscriber.lastVeilAt < fourteenDays) continue;
+
+    try {
+      await sendVeilEmail(
+        transporter,
+        process.env.SMTP_USER,
+        subscriber.email,
+        result
+      );
+      subscriber.veilSentCount = (subscriber.veilSentCount || 0) + 1;
+      subscriber.lastVeilAt = now;
+      sentCount++;
+    } catch (err) {
+      console.error(`Failed to send Veil to ${subscriber.email}:`, err.message);
+    }
+  }
+
+  if (sentCount > 0) {
+    saveEmails(emailList);
+    console.log(`The Veil: sent ${sentCount} email(s)`);
+  }
+}
+
+// Runs once a day at 09:00 server time
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  cron.schedule('0 9 * * *', () => {
+    runVeilCheck().catch(err => console.error('Veil check failed:', err));
+  });
+} else {
+  console.warn('The Veil: SMTP not configured — daily email check disabled.');
+}
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

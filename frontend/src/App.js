@@ -47,6 +47,14 @@ function App() {
   };
 
   useEffect(() => {
+    // Generate a persistent anonymous user ID — links mood history to The Veil
+    let uid = localStorage.getItem('mirrorUserId');
+    if (!uid) {
+      uid = (crypto.randomUUID && crypto.randomUUID()) ||
+        'm-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem('mirrorUserId', uid);
+    }
+
     const savedCount = localStorage.getItem('checkInCount');
     if (savedCount) {
       setCheckInCount(parseInt(savedCount));
@@ -58,15 +66,18 @@ function App() {
     }
   }, []);
 
+  const getUserId = () => localStorage.getItem('mirrorUserId');
+
   const handleCheckIn = () => {
     if (!mood) return;
-    
+    const userId = getUserId();
+
     // If email provided, save it to The Veil
     if (email) {
       fetch(API_ENDPOINTS.EMAIL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, mood })
+        body: JSON.stringify({ email, mood, userId })
       }).then(() => {
         localStorage.setItem('emailCollected', 'true');
         proceedToQuote();
@@ -77,10 +88,11 @@ function App() {
   };
 
   const proceedToQuote = () => {
+    const userId = getUserId();
     fetch(API_ENDPOINTS.MOOD, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mood, reflection: email || '' })
+      body: JSON.stringify({ mood, reflection: email || '', userId })
     }).then(() => {
       const newCount = checkInCount + 1;
       setCheckInCount(newCount);
@@ -166,7 +178,7 @@ function App() {
               lineHeight: '1.6',
               opacity: 0.8
             }}>
-              You've been seen. Monthly clarity awaits your inbox.
+              You've been seen. After a week of honesty, the Veil lifts — and shows you what you've been missing.
             </p>
           )}
         </div>
@@ -279,7 +291,7 @@ function App() {
             marginBottom: '1.5em',
             fontStyle: 'italic'
           }}>
-            Enter your email to receive The Veil — monthly philosophical insights based on your mood.
+            Enter your email. After a week of honest check-ins, The Veil lifts — a reflection on the patterns you didn't know you were showing.
           </p>
           <input
             type="email"
