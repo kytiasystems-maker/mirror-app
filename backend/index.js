@@ -108,7 +108,7 @@ app.post('/api/email', async (req, res) => {
     // Send internal notification (best-effort, non-blocking)
     try {
       await transporter.sendMail({
-        from: `"Mirror App" <${process.env.SMTP_USER}>`,
+        from: `"Mirror App" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
         to: process.env.NOTIFY_EMAIL,
         subject: `New Veil Subscriber: ${email}`,
         html: `
@@ -259,7 +259,7 @@ async function runVeilCheck() {
     try {
       await sendVeilEmail(
         transporter,
-        process.env.SMTP_USER,
+        process.env.FROM_EMAIL || process.env.SMTP_USER,
         subscriber.email,
         result
       );
