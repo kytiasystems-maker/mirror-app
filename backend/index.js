@@ -241,31 +241,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Mirror is watching.' });
 });
 
-// TEMPORARY — debug SMTP configuration and delivery
-app.get('/api/debug-smtp', async (req, res) => {
-  const config = {
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    user: process.env.SMTP_USER,
-    passSet: !!process.env.SMTP_PASS,
-    passLength: (process.env.SMTP_PASS || '').length,
-    from: process.env.FROM_EMAIL,
-    notify: process.env.NOTIFY_EMAIL
-  };
-
-  try {
-    const info = await transporter.sendMail({
-      from: `"Mirror Test" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
-      to: process.env.NOTIFY_EMAIL,
-      subject: 'Mirror SMTP Debug Test',
-      text: 'If you see this, SMTP delivery works.'
-    });
-    res.json({ config, success: true, info });
-  } catch (err) {
-    res.json({ config, success: false, error: err.message, response: err.response || null, code: err.code || null });
-  }
-});
-
 // --- The Veil: daily check for users who earned their insight ---
 async function runVeilCheck() {
   let sentCount = 0;
