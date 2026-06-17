@@ -11,40 +11,91 @@ function App() {
   const [checkInCount, setCheckInCount] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
-  const quotes = {
-    anxious: {
-      text: "What doesn't kill me makes me stronger.",
-      author: "— Nietzsche"
-    },
-    angry: {
-      text: "Never waste your anger on people who don't deserve it.",
-      author: "— Marcus Aurelius"
-    },
-    calm: {
-      text: "The greatest victory is to conquer yourself.",
-      author: "— Plato"
-    },
-    sad: {
-      text: "Suffering tests the strength of men.",
-      author: "— Seneca"
-    },
-    lost: {
-      text: "A man who doesn't know what he wants from life accepts anything.",
-      author: "— Schopenhauer"
-    },
-    confused: {
-      text: "Your own confusion is a form of understanding.",
-      author: "— Jung"
-    },
-    hopeful: {
-      text: "Hope is the worst of evils, for it prolongs the torment of man.",
-      author: "— Nietzsche"
-    },
-    neutral: {
-      text: "Observe yourself as you would allow anyone else to.",
-      author: "— Machiavelli"
-    }
+  const quotePool = {
+    anxious: [
+      { text: "We suffer more often in imagination than in reality.", author: "— Seneca" },
+      { text: "What doesn't kill me makes me stronger.", author: "— Nietzsche" },
+      { text: "Man is not worried by real problems so much as by his imagined anxieties about real problems.", author: "— Epictetus" },
+      { text: "The mind that is anxious about future events is miserable.", author: "— Seneca" },
+      { text: "Anxiety is the dizziness of freedom.", author: "— Kierkegaard" },
+      { text: "He who is not everyday conquering some fear has not learned the secret of life.", author: "— Ralph Waldo Emerson" },
+      { text: "Nothing in the affairs of men is worthy of great anxiety.", author: "— Plato" }
+    ],
+    angry: [
+      { text: "How much more grievous are the consequences of anger than the causes of it.", author: "— Marcus Aurelius" },
+      { text: "Anger is a momentary madness, so control your passion or it will control you.", author: "— Horace" },
+      { text: "The best fighter is never angry.", author: "— Lao Tzu" },
+      { text: "Speak when you are angry and you will make the best speech you will ever regret.", author: "— Ambrose Bierce" },
+      { text: "For every minute you remain angry, you give up sixty seconds of peace of mind.", author: "— Emerson" },
+      { text: "Anybody can become angry — that is easy. But to be angry with the right person, to the right degree, at the right time — that is not easy.", author: "— Aristotle" },
+      { text: "Let your enemies be disarmed by the gentleness of your manner, but at the same time let your friends see what mettle you are made of.", author: "— Machiavelli" }
+    ],
+    calm: [
+      { text: "The greatest victory is to conquer yourself.", author: "— Plato" },
+      { text: "Nothing can disturb you but your own imaginings.", author: "— Epictetus" },
+      { text: "The soul becomes dyed with the color of its thoughts.", author: "— Marcus Aurelius" },
+      { text: "To the mind that is still, the whole universe surrenders.", author: "— Lao Tzu" },
+      { text: "Calmness is the cradle of power.", author: "— J.G. Holland" },
+      { text: "In the midst of movement and chaos, keep stillness inside of you.", author: "— Deepak Chopra" },
+      { text: "The wise man does not expose himself needlessly to danger, since there are few things for which he cares sufficiently.", author: "— Aristotle" }
+    ],
+    sad: [
+      { text: "The keenest sorrow is to recognize ourselves as the sole cause of all our adversities.", author: "— Sophocles" },
+      { text: "Even a happy life cannot be without a measure of darkness.", author: "— Jung" },
+      { text: "One must still have chaos in oneself to be able to give birth to a dancing star.", author: "— Nietzsche" },
+      { text: "The wound is the place where the Light enters you.", author: "— Rumi" },
+      { text: "Sadness is but a wall between two gardens.", author: "— Kahlil Gibran" },
+      { text: "Man performs and engenders so much more than he can or should have to bear. That is what is truly terrible.", author: "— Cormac McCarthy" },
+      { text: "There is no education like adversity.", author: "— Disraeli" }
+    ],
+    lost: [
+      { text: "Not all those who wander are lost.", author: "— Tolkien" },
+      { text: "He who has a why to live can bear almost any how.", author: "— Nietzsche" },
+      { text: "In the middle of difficulty lies opportunity.", author: "— Einstein" },
+      { text: "A man who does not know what he wants from life accepts anything.", author: "— Schopenhauer" },
+      { text: "I am not lost, for I know where I am. But however, where I am may be lost.", author: "— Winnie the Pooh" },
+      { text: "No man ever steps in the same river twice, for it's not the same river and he's not the same man.", author: "— Heraclitus" },
+      { text: "I took a deep breath and listened to the old brag of my heart: I am, I am, I am.", author: "— Sylvia Plath" }
+    ],
+    confused: [
+      { text: "Until you make the unconscious conscious, it will direct your life and you will call it fate.", author: "— Jung" },
+      { text: "The privilege of a lifetime is to become who you truly are.", author: "— Jung" },
+      { text: "The most confused we ever get is when we're trying to convince our heads of something our heart knows is a lie.", author: "— Karen Moning" },
+      { text: "Confusion is a word we have invented for an order which is not yet understood.", author: "— Henry Miller" },
+      { text: "In all chaos there is a cosmos, in all disorder a secret order.", author: "— Jung" },
+      { text: "He who thinks he knows, doesn't know. He who knows that he doesn't know, knows.", author: "— Lao Tzu" },
+      { text: "I am not what happened to me, I am what I choose to become.", author: "— Jung" }
+    ],
+    hopeful: [
+      { text: "Hope is the worst of evils, for it prolongs the torment of man.", author: "— Nietzsche" },
+      { text: "He that can have patience can have what he will.", author: "— Benjamin Franklin" },
+      { text: "Learn from yesterday, live for today, hope for tomorrow.", author: "— Einstein" },
+      { text: "Hope is a waking dream.", author: "— Aristotle" },
+      { text: "The very least you can do in your life is figure out what you hope for.", author: "— Barbara Kingsolver" },
+      { text: "Hope is being able to see that there is light despite all of the darkness.", author: "— Desmond Tutu" },
+      { text: "Where there is no hope, it is incumbent on us to invent it.", author: "— Camus" }
+    ],
+    neutral: [
+      { text: "Know thyself.", author: "— Socrates" },
+      { text: "The unexamined life is not worth living.", author: "— Socrates" },
+      { text: "Observe all men, thyself most.", author: "— Benjamin Franklin" },
+      { text: "He who knows others is wise. He who knows himself is enlightened.", author: "— Lao Tzu" },
+      { text: "Most powerful is he who has himself in his own power.", author: "— Seneca" },
+      { text: "To conquer oneself is a greater victory than to conquer thousands in a battle.", author: "— Buddha" },
+      { text: "It is not that I am mad, it is only that my head is different from yours.", author: "— Diogenes" }
+    ]
   };
+
+  // Rotate quotes daily — same quote for everyone on same day, different each day
+  const getDailyQuote = (mood) => {
+    const pool = quotePool[mood] || quotePool.neutral;
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+    return pool[dayOfYear % pool.length];
+  };
+
+  const quotes = Object.fromEntries(
+    Object.keys(quotePool).map(m => [m, getDailyQuote(m)])
+  );
 
   useEffect(() => {
     // Generate a persistent anonymous user ID — links mood history to The Veil
