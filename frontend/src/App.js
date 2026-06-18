@@ -495,7 +495,7 @@ function App() {
             color: accentColor,
             textTransform: 'uppercase',
             marginBottom: '1.5em'
-          }}>Read next</p>
+          }}>Recommended reading</p>
           <p style={{
             fontSize: '1.1em',
             fontStyle: 'italic',
@@ -537,7 +537,7 @@ function App() {
                 color: textColor,
                 opacity: 0.65,
                 marginBottom: '1.5em'
-              }}>Unii oameni aleg să vadă mai mult. Tu?</p>
+              }}>Some people choose to see more. Do you?</p>
               <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="email"
