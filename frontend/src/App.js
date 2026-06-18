@@ -121,25 +121,139 @@ function App() {
 
   const handleCheckIn = () => {
     if (!mood) return;
-    const userId = getUserId();
+    proceedToQuote();
+  };
 
-    // If email provided, save it to The Veil
-    if (email) {
-      fetch(API_ENDPOINTS.EMAIL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, mood, userId })
-      }).then(() => {
-        localStorage.setItem('emailCollected', 'true');
-        proceedToQuote();
-      });
-    } else {
-      proceedToQuote();
+  // ── Philosophical profiles ──────────────────────────────────────────────
+  const profiles = {
+    anxious:  {
+      archetype: 'The Seeker',
+      philosopher: 'Kierkegaard',
+      description: 'Your mind lives in questions, not answers. That restlessness is not a flaw — it is exactly what drove the greatest thinkers of anxiety to their deepest work.',
+      book: 'The Concept of Anxiety',
+      bookAuthor: 'Søren Kierkegaard'
+    },
+    angry: {
+      archetype: 'The Rebel',
+      philosopher: 'Nietzsche',
+      description: 'The contradiction you carry is not chaos. It is the creative tension from which people who actually change things are made.',
+      book: 'Thus Spoke Zarathustra',
+      bookAuthor: 'Friedrich Nietzsche'
+    },
+    calm: {
+      archetype: 'The Stoic',
+      philosopher: 'Marcus Aurelius',
+      description: 'Your detachment is not indifference. It is controlled power. The people around you feel it, even when they cannot name it.',
+      book: 'Meditations',
+      bookAuthor: 'Marcus Aurelius'
+    },
+    sad: {
+      archetype: 'The Witness',
+      philosopher: 'Schopenhauer',
+      description: 'You see things others prefer to ignore. That clarity is uncomfortable — and it is also rare. Most people spend their lives avoiding what you face directly.',
+      book: 'The World as Will and Representation',
+      bookAuthor: 'Arthur Schopenhauer'
+    },
+    lost: {
+      archetype: 'The Wanderer',
+      philosopher: 'Camus',
+      description: 'You are not lost. You are between versions of yourself. That space feels formless — but it is where every real transformation begins.',
+      book: 'The Myth of Sisyphus',
+      bookAuthor: 'Albert Camus'
+    },
+    confused: {
+      archetype: 'The Shadow',
+      philosopher: 'Jung',
+      description: 'The parts of yourself you cannot name yet are not your enemy. Jung called this the shadow — and integrating it is the work most people never begin.',
+      book: 'Modern Man in Search of a Soul',
+      bookAuthor: 'Carl Jung'
+    },
+    hopeful: {
+      archetype: 'The Builder',
+      philosopher: 'Seneca',
+      description: 'Hope without direction is postponed anxiety. Hope with a clear eye — the kind Seneca wrote about — is the rarest form of discipline.',
+      book: 'Letters from a Stoic',
+      bookAuthor: 'Seneca'
+    },
+    neutral: {
+      archetype: 'The Observer',
+      philosopher: 'Epictetus',
+      description: 'Stillness that is chosen is not emptiness. It is the position from which everything else can be seen clearly. Very few people ever reach it.',
+      book: 'Discourses',
+      bookAuthor: 'Epictetus'
     }
+  };
+
+  // ── Daily prediction based on history ───────────────────────────────────
+  const getDailyPrediction = (currentMood) => {
+    const history = JSON.parse(localStorage.getItem('moodHistory') || '[]');
+
+    // Need at least 5 entries for a real pattern
+    if (history.length < 5) {
+      return {
+        type: 'generic',
+        text: `Most people who choose "${currentMood}" today will not return tomorrow. You already have.`,
+        isGeneric: true
+      };
+    }
+
+    // Count how many times this mood was followed by each other mood
+    const transitions = {};
+    for (let i = 0; i < history.length - 1; i++) {
+      if (history[i].mood === currentMood) {
+        const next = history[i + 1].mood;
+        transitions[next] = (transitions[next] || 0) + 1;
+      }
+    }
+
+    // Find most common next mood
+    const nextMood = Object.entries(transitions).sort((a,b) => b[1]-a[1])[0];
+
+    // Check day-of-week pattern
+    const today = new Date().getDay();
+    const dayMoods = history.filter(e => new Date(e.timestamp).getDay() === today);
+    const dayFreq = {};
+    dayMoods.forEach(e => { dayFreq[e.mood] = (dayFreq[e.mood] || 0) + 1; });
+    const dominantDay = Object.entries(dayFreq).sort((a,b) => b[1]-a[1])[0];
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    if (nextMood && nextMood[1] >= 2) {
+      const isPositiveShift = ['calm','hopeful','neutral'].includes(nextMood[0]);
+      return {
+        type: 'transition',
+        text: isPositiveShift
+          ? `${nextMood[1]} times after "${currentMood}", what followed was "${nextMood[0]}". Tomorrow may already be different.`
+          : `After "${currentMood}", your pattern moves toward "${nextMood[0]}". You have seen this before. You know how it ends.`,
+        isGeneric: false
+      };
+    }
+
+    if (dominantDay && dominantDay[1] >= 2 && dominantDay[0] === currentMood) {
+      return {
+        type: 'daypattern',
+        text: `${days[today]}s tend to bring "${currentMood}" for you. This is not coincidence — it is a pattern worth examining.`,
+        isGeneric: false
+      };
+    }
+
+    const count = history.filter(e => e.mood === currentMood).length;
+    const pct = Math.round((count / history.length) * 100);
+    return {
+      type: 'frequency',
+      text: `"${currentMood}" has appeared in ${pct}% of your check-ins. The mirror has been showing you the same thing for a while now.`,
+      isGeneric: false
+    };
   };
 
   const proceedToQuote = () => {
     const userId = getUserId();
+
+    // Save mood to local history for pattern analysis
+    const history = JSON.parse(localStorage.getItem('moodHistory') || '[]');
+    history.push({ mood, timestamp: Date.now() });
+    if (history.length > 90) history.shift(); // keep last 90 days
+    localStorage.setItem('moodHistory', JSON.stringify(history));
+
     fetch(API_ENDPOINTS.MOOD, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -163,6 +277,10 @@ function App() {
   const darkGray = '#1a1a1a';
 
   if (submitted && showQuote) {
+    const profile = profiles[mood] || profiles.neutral;
+    const prediction = getDailyPrediction(mood);
+    const emailCollected = localStorage.getItem('emailCollected');
+
     return (
       <div style={{
         minHeight: '100vh',
@@ -170,93 +288,219 @@ function App() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         fontFamily: 'Georgia, serif',
-        padding: '2em',
+        padding: '3em 2em',
         color: textColor
       }}>
         <h1 style={{
-          fontSize: '2.2em',
+          fontSize: '1.4em',
           fontWeight: 300,
-          letterSpacing: '4px',
+          letterSpacing: '6px',
           marginBottom: '3em',
           textTransform: 'uppercase',
-          color: accentColor
+          color: accentColor,
+          alignSelf: 'center'
         }}>Mirror</h1>
 
+        {/* ── Philosophical Profile ── */}
         <div style={{
-          maxWidth: '500px',
-          textAlign: 'center',
-          marginBottom: '4em'
+          maxWidth: '480px',
+          width: '100%',
+          marginBottom: '3em',
+          textAlign: 'center'
         }}>
           <p style={{
-            fontSize: '1.4em',
-            fontStyle: 'italic',
-            lineHeight: '1.8',
-            marginBottom: '1.5em',
+            fontSize: '0.7em',
+            letterSpacing: '3px',
+            color: accentColor,
+            textTransform: 'uppercase',
+            marginBottom: '0.8em'
+          }}>Your profile</p>
+          <p style={{
+            fontSize: '2em',
+            fontWeight: 300,
+            letterSpacing: '2px',
+            marginBottom: '0.3em',
             color: textColor
-          }}>
-            {quote.text}
-          </p>
+          }}>{profile.archetype}</p>
           <p style={{
-            fontSize: '0.95em',
+            fontSize: '0.85em',
+            letterSpacing: '2px',
             color: accentColor,
-            letterSpacing: '2px'
-          }}>
-            {quote.author}
-          </p>
+            marginBottom: '1.8em'
+          }}>— {profile.philosopher}</p>
+          <p style={{
+            fontSize: '1em',
+            lineHeight: '1.9',
+            color: textColor,
+            opacity: 0.85,
+            fontStyle: 'italic'
+          }}>{profile.description}</p>
         </div>
 
+        {/* ── Divider ── */}
         <div style={{
-          maxWidth: '500px',
-          minHeight: '200px',
-          borderTop: '1px solid rgba(160, 160, 160, 0.2)',
-          paddingTop: '2em',
+          width: '40px',
+          height: '1px',
+          background: 'rgba(160,160,160,0.25)',
           marginBottom: '3em'
+        }} />
+
+        {/* ── Daily Prediction ── */}
+        <div style={{
+          maxWidth: '480px',
+          width: '100%',
+          marginBottom: '3em',
+          textAlign: 'center'
         }}>
           <p style={{
+            fontSize: '0.7em',
+            letterSpacing: '3px',
             color: accentColor,
-            fontSize: '0.85em',
-            letterSpacing: '1px',
-            marginBottom: '1em'
-          }}>
-            The Veil
-          </p>
-          {email && (
-            <p style={{
-              color: textColor,
-              fontSize: '0.85em',
-              lineHeight: '1.6',
-              opacity: 0.8
-            }}>
-              You've been seen. After a week of honesty, the Veil lifts — and shows you what you've been missing.
-            </p>
-          )}
+            textTransform: 'uppercase',
+            marginBottom: '1.5em'
+          }}>{prediction.isGeneric ? 'Today' : 'Your pattern'}</p>
+          <p style={{
+            fontSize: '1.1em',
+            lineHeight: '1.9',
+            color: textColor,
+            opacity: 0.9
+          }}>{prediction.text}</p>
         </div>
 
+        {/* ── Divider ── */}
+        <div style={{
+          width: '40px',
+          height: '1px',
+          background: 'rgba(160,160,160,0.25)',
+          marginBottom: '3em'
+        }} />
+
+        {/* ── Book Recommendation ── */}
+        <div style={{
+          maxWidth: '480px',
+          width: '100%',
+          marginBottom: '3em',
+          textAlign: 'center'
+        }}>
+          <p style={{
+            fontSize: '0.7em',
+            letterSpacing: '3px',
+            color: accentColor,
+            textTransform: 'uppercase',
+            marginBottom: '1.5em'
+          }}>Read next</p>
+          <p style={{
+            fontSize: '1.1em',
+            fontStyle: 'italic',
+            color: textColor,
+            marginBottom: '0.4em'
+          }}>{profile.book}</p>
+          <p style={{
+            fontSize: '0.85em',
+            color: accentColor,
+            letterSpacing: '1px'
+          }}>— {profile.bookAuthor}</p>
+        </div>
+
+        {/* ── Veil CTA (only if no email yet) ── */}
+        {!emailCollected && (
+          <>
+            <div style={{
+              width: '40px',
+              height: '1px',
+              background: 'rgba(160,160,160,0.25)',
+              marginBottom: '3em'
+            }} />
+            <div style={{
+              maxWidth: '480px',
+              width: '100%',
+              marginBottom: '3em',
+              textAlign: 'center'
+            }}>
+              <p style={{
+                fontSize: '0.7em',
+                letterSpacing: '3px',
+                color: accentColor,
+                textTransform: 'uppercase',
+                marginBottom: '1em'
+              }}>The Veil</p>
+              <p style={{
+                fontSize: '0.9em',
+                lineHeight: '1.8',
+                color: textColor,
+                opacity: 0.65,
+                marginBottom: '1.5em'
+              }}>After a week of check-ins, Mirror reads your actual patterns — not archetypes, but yours specifically. Leave an email if you want that.</p>
+              <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(160,160,160,0.25)',
+                    color: textColor,
+                    padding: '0.6em 1em',
+                    fontFamily: 'Georgia, serif',
+                    fontSize: '0.85em',
+                    outline: 'none',
+                    width: '220px'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (!email) return;
+                    const userId = getUserId();
+                    fetch(API_ENDPOINTS.EMAIL, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, mood, userId })
+                    }).then(() => {
+                      localStorage.setItem('emailCollected', 'true');
+                      setEmail('');
+                    });
+                  }}
+                  style={{
+                    background: 'transparent',
+                    color: accentColor,
+                    border: '1px solid rgba(160,160,160,0.3)',
+                    padding: '0.6em 1.2em',
+                    cursor: 'pointer',
+                    fontSize: '0.8em',
+                    letterSpacing: '1px',
+                    fontFamily: 'Georgia, serif'
+                  }}
+                >Enter</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Return ── */}
         <button
           onClick={() => {
             setSubmitted(false);
             setShowQuote(false);
             setMood('');
-            setReflection('');
+            setEmail('');
           }}
           style={{
             background: 'transparent',
             color: accentColor,
-            border: '1px solid rgba(160, 160, 160, 0.3)',
-            padding: '0.8em 2em',
+            border: '1px solid rgba(160,160,160,0.2)',
+            padding: '0.8em 2.5em',
             cursor: 'pointer',
-            fontSize: '0.9em',
-            letterSpacing: '2px',
-            transition: 'all 0.3s ease',
-            fontFamily: 'Georgia, serif'
+            fontSize: '0.8em',
+            letterSpacing: '3px',
+            fontFamily: 'Georgia, serif',
+            marginTop: '1em',
+            textTransform: 'uppercase'
           }}
-          onMouseEnter={(e) => e.target.style.borderColor = accentColor}
-          onMouseLeave={(e) => e.target.style.borderColor = 'rgba(160, 160, 160, 0.3)'}
-        >
-          Return
-        </button>
+          onMouseEnter={e => e.target.style.borderColor = accentColor}
+          onMouseLeave={e => e.target.style.borderColor = 'rgba(160,160,160,0.2)'}
+        >Return</button>
       </div>
     );
   }
@@ -335,33 +579,6 @@ function App() {
           width: '100%',
           marginBottom: '2em'
         }}>
-          <p style={{
-            fontSize: '0.9em',
-            color: accentColor,
-            letterSpacing: '1px',
-            marginBottom: '1.5em',
-            fontStyle: 'italic'
-          }}>
-            Enter your email. After a week of honest check-ins, The Veil lifts — a reflection on the patterns you didn't know you were showing.
-          </p>
-          <input
-            type="email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCheckIn(); }}
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: '1px solid rgba(160, 160, 160, 0.2)',
-              color: textColor,
-              padding: '1em',
-              fontFamily: 'Georgia, serif',
-              fontSize: '0.95em',
-              boxSizing: 'border-box',
-              lineHeight: '1.6'
-            }}
-          />
         </div>
 
         <button
