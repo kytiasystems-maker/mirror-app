@@ -351,7 +351,7 @@ function App() {
     return openingPhrases[dayOfYear % openingPhrases.length];
   };
 
-
+  const proceedToQuote = () => {
     const userId = getUserId();
 
     // Save mood to local history for pattern analysis
@@ -370,7 +370,7 @@ function App() {
       localStorage.setItem('checkInCount', newCount);
       localStorage.setItem('lastCheckInDate', new Date().toDateString());
 
-      const selectedQuote = quotes[mood] || quotes.neutral;
+      const selectedQuote = getDailyQuote(mood);
       setQuote(selectedQuote);
       setShowQuote(true);
       setSubmitted(true);
