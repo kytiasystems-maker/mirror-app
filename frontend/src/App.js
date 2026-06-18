@@ -192,14 +192,14 @@ function App() {
 
     if (history.length < 5) {
       const genericLines = {
-        anxious: "The ones who feel the most are rarely the ones who show it. You already know this.",
-        angry:   "Anger that isn't understood becomes a wall. You're still here — that means something.",
-        calm:    "Calm that is chosen is not the same as calm that happened. Yours looks chosen.",
-        sad:     "Sadness that is faced directly has a shorter life than sadness that is avoided.",
-        lost:    "The ones who admit they're lost find the way faster than the ones who pretend they aren't.",
-        confused:"Confusion means you're between two things. That's not a problem. It's a transition.",
-        hopeful: "Hope without direction is just postponed anxiety. With direction, it becomes something else.",
-        neutral: "Stillness is underrated. Most people mistake it for emptiness."
+        anxious:  "You're here. That's the first honest thing you've done today.",
+        angry:    "Something crossed a line. You felt it before you understood it.",
+        calm:     "Not everyone arrives here calm. You did. Notice that.",
+        sad:      "You named it instead of pushing it down. That's rarer than it sounds.",
+        lost:     "You opened this instead of something else. That means something.",
+        confused: "You can't think your way out of this one. You already know that.",
+        hopeful:  "Hope is easy. Showing up when it's hard is different. You're doing the second one.",
+        neutral:  "Neutral is not nothing. It's the clearest state you can be in."
       };
       return { text: genericLines[currentMood] || genericLines.neutral, isGeneric: true };
     }
