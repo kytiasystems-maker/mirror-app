@@ -187,65 +187,171 @@ function App() {
   // ── Daily prediction based on history ───────────────────────────────────
   const getDailyPrediction = (currentMood) => {
     const history = JSON.parse(localStorage.getItem('moodHistory') || '[]');
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const today = new Date().getDay();
 
-    // Need at least 5 entries for a real pattern
     if (history.length < 5) {
-      return {
-        type: 'generic',
-        text: `Most people who choose "${currentMood}" today will not return tomorrow. You already have.`,
-        isGeneric: true
+      const genericLines = {
+        anxious: "The ones who feel the most are rarely the ones who show it. You already know this.",
+        angry:   "Anger that isn't understood becomes a wall. You're still here — that means something.",
+        calm:    "Calm that is chosen is not the same as calm that happened. Yours looks chosen.",
+        sad:     "Sadness that is faced directly has a shorter life than sadness that is avoided.",
+        lost:    "The ones who admit they're lost find the way faster than the ones who pretend they aren't.",
+        confused:"Confusion means you're between two things. That's not a problem. It's a transition.",
+        hopeful: "Hope without direction is just postponed anxiety. With direction, it becomes something else.",
+        neutral: "Stillness is underrated. Most people mistake it for emptiness."
       };
+      return { text: genericLines[currentMood] || genericLines.neutral, isGeneric: true };
     }
 
-    // Count how many times this mood was followed by each other mood
+    const candidates = [];
+
+    // Pattern 1: transition (A → B repeated)
     const transitions = {};
     for (let i = 0; i < history.length - 1; i++) {
       if (history[i].mood === currentMood) {
-        const next = history[i + 1].mood;
-        transitions[next] = (transitions[next] || 0) + 1;
+        const next = history[i+1].mood;
+        if (next !== currentMood) {
+          transitions[next] = (transitions[next] || 0) + 1;
+        }
+      }
+    }
+    const topTransition = Object.entries(transitions).sort((a,b) => b[1]-a[1])[0];
+    if (topTransition && topTransition[1] >= 2) {
+      const [nextMood, count] = topTransition;
+      const positive = ['calm','hopeful','neutral'].includes(nextMood);
+      candidates.push({
+        priority: 3,
+        text: positive
+          ? `Something shifts after days like this one. It has before. It will again.`
+          : `There's something that tends to follow this feeling for you. You've seen it ${count} times. You know what it is.`
+      });
+    }
+
+    // Pattern 2: day of week
+    const dayHistory = history.filter(e => new Date(e.timestamp).getDay() === today);
+    const dayFreq = {};
+    dayHistory.forEach(e => { dayFreq[e.mood] = (dayFreq[e.mood] || 0) + 1; });
+    const topDay = Object.entries(dayFreq).sort((a,b) => b[1]-a[1])[0];
+    if (topDay && topDay[0] === currentMood && topDay[1] >= 2) {
+      candidates.push({
+        priority: 2,
+        text: `${days[today]}s tend to find you here. Not a coincidence — a pattern worth sitting with.`
+      });
+    }
+
+    // Pattern 3: streak of same mood
+    let streak = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].mood === currentMood) streak++;
+      else break;
+    }
+    if (streak >= 3) {
+      candidates.push({
+        priority: 2,
+        text: `This is the ${streak === 3 ? 'third' : streak === 4 ? 'fourth' : `${streak}th`} time in a row. Something is asking for your attention.`
+      });
+    }
+
+    // Pattern 4: dominant mood over 14 days
+    const recent = history.slice(-14);
+    const freq = {};
+    recent.forEach(e => { freq[e.mood] = (freq[e.mood] || 0) + 1; });
+    const dominant = Object.entries(freq).sort((a,b) => b[1]-a[1])[0];
+    if (dominant && dominant[0] === currentMood && dominant[1] >= 5) {
+      const pct = Math.round((dominant[1] / recent.length) * 100);
+      candidates.push({
+        priority: 1,
+        text: `This has been the lens through which you've seen most of the last two weeks. Not good or bad — just true.`
+      });
+    }
+
+    // Pattern 5: mood after long absence
+    const lastSame = [...history].reverse().slice(1).findIndex(e => e.mood === currentMood);
+    if (lastSame > 6) {
+      candidates.push({
+        priority: 2,
+        text: `You haven't felt this in a while. Something brought it back. It usually knows why, even when you don't.`
+      });
+    }
+
+    // Pattern 6: improvement (was worse, now better)
+    if (history.length >= 4) {
+      const lastFour = history.slice(-4).map(e => e.mood);
+      const negMoods = ['angry','anxious','sad','lost','confused'];
+      const wasBad = negMoods.includes(lastFour[0]) && negMoods.includes(lastFour[1]);
+      const nowOk = ['calm','hopeful','neutral'].includes(currentMood);
+      if (wasBad && nowOk) {
+        candidates.push({
+          priority: 3,
+          text: `You've moved through something. Most people don't notice when they do. You're noticing.`
+        });
       }
     }
 
-    // Find most common next mood
-    const nextMood = Object.entries(transitions).sort((a,b) => b[1]-a[1])[0];
+    // Pattern 7: contrast with yesterday
+    if (history.length >= 2) {
+      const yesterday = history[history.length - 1].mood;
+      const negMoods = ['angry','anxious','sad','lost','confused'];
+      if (negMoods.includes(yesterday) && !negMoods.includes(currentMood)) {
+        candidates.push({
+          priority: 2,
+          text: `Yesterday was different. Today you're here instead. That's not nothing.`
+        });
+      }
+    }
 
-    // Check day-of-week pattern
-    const today = new Date().getDay();
-    const dayMoods = history.filter(e => new Date(e.timestamp).getDay() === today);
-    const dayFreq = {};
-    dayMoods.forEach(e => { dayFreq[e.mood] = (dayFreq[e.mood] || 0) + 1; });
-    const dominantDay = Object.entries(dayFreq).sort((a,b) => b[1]-a[1])[0];
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-
-    if (nextMood && nextMood[1] >= 2) {
-      const isPositiveShift = ['calm','hopeful','neutral'].includes(nextMood[0]);
+    if (candidates.length === 0) {
       return {
-        type: 'transition',
-        text: isPositiveShift
-          ? `${nextMood[1]} times after "${currentMood}", what followed was "${nextMood[0]}". Tomorrow may already be different.`
-          : `After "${currentMood}", your pattern moves toward "${nextMood[0]}". You have seen this before. You know how it ends.`,
+        text: `You've shown up ${history.length} times. The picture takes time to appear. Keep going.`,
         isGeneric: false
       };
     }
 
-    if (dominantDay && dominantDay[1] >= 2 && dominantDay[0] === currentMood) {
-      return {
-        type: 'daypattern',
-        text: `${days[today]}s tend to bring "${currentMood}" for you. This is not coincidence — it is a pattern worth examining.`,
-        isGeneric: false
-      };
-    }
-
-    const count = history.filter(e => e.mood === currentMood).length;
-    const pct = Math.round((count / history.length) * 100);
-    return {
-      type: 'frequency',
-      text: `"${currentMood}" has appeared in ${pct}% of your check-ins. The mirror has been showing you the same thing for a while now.`,
-      isGeneric: false
-    };
+    candidates.sort((a,b) => b.priority - a.priority);
+    return { text: candidates[0].text, isGeneric: false };
   };
 
-  const proceedToQuote = () => {
+  // ── Opening phrases — rotate daily ─────────────────────────────────────
+  const openingPhrases = [
+    "Most people never ask themselves this question.",
+    "The hardest person to be honest with is yourself.",
+    "What you avoid feeling is what controls you.",
+    "Clarity is uncomfortable. That's how you know it's real.",
+    "You already know the answer. You came here to confirm it.",
+    "The ones who know themselves are dangerous. In the best way.",
+    "Not every day deserves the same face.",
+    "What you call a bad mood, others call a signal.",
+    "You are not the same person who opened this yesterday.",
+    "Honesty with yourself costs nothing. Avoiding it costs everything.",
+    "The pattern was there before you noticed it.",
+    "Some truths only appear when you stop looking away.",
+    "What you feel right now has a name. Give it one.",
+    "The mirror shows what it shows. You decide what to do with it.",
+    "Most people check their phone first. You're here instead.",
+    "Emotion is information. What is yours saying today?",
+    "The day hasn't decided what it is yet. Neither have you.",
+    "There is a version of you that already knows what this means.",
+    "You don't need to fix it. You need to see it.",
+    "Silence is not emptiness. It's where things become clear.",
+    "What you resist today is what you'll understand tomorrow.",
+    "The strongest people are the ones who admit where they actually are.",
+    "Every check-in is a data point. The picture takes time to appear.",
+    "You showed up. That's already more than most.",
+    "What happened today that you haven't named yet?",
+    "Beneath every mood, there's something that put it there.",
+    "Knowing yourself is not a destination. It's a daily act.",
+    "The version of you that avoids this question still exists. So does the one that doesn't.",
+    "Some things only become visible when you look at them consistently.",
+    "You've been here before. Notice what's different this time."
+  ];
+
+  const getDailyOpening = () => {
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+    return openingPhrases[dayOfYear % openingPhrases.length];
+  };
+
+
     const userId = getUserId();
 
     // Save mood to local history for pattern analysis
@@ -431,7 +537,7 @@ function App() {
                 color: textColor,
                 opacity: 0.65,
                 marginBottom: '1.5em'
-              }}>After a week of check-ins, Mirror reads your actual patterns — not archetypes, but yours specifically. Leave an email if you want that.</p>
+              }}>Unii oameni aleg să vadă mai mult. Tu?</p>
               <div style={{ display: 'flex', gap: '0.8em', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="email"
@@ -518,25 +624,45 @@ function App() {
       color: textColor
     }}>
       <h1 style={{
-        fontSize: '3em',
+        fontSize: '2em',
         fontWeight: 300,
-        letterSpacing: '4px',
-        marginBottom: '3em',
+        letterSpacing: '8px',
+        marginBottom: '1.5em',
         textTransform: 'uppercase',
         color: accentColor
       }}>Mirror</h1>
 
+      {/* ── Daily opening phrase ── */}
+      <div style={{
+        maxWidth: '420px',
+        textAlign: 'center',
+        marginBottom: '3.5em'
+      }}>
+        <p style={{
+          fontSize: '1.05em',
+          fontStyle: 'italic',
+          lineHeight: '1.9',
+          color: textColor,
+          opacity: 0.7,
+          letterSpacing: '0.3px'
+        }}>
+          {getDailyOpening()}
+        </p>
+      </div>
+
       <div style={{
         maxWidth: '500px',
+        width: '100%',
         textAlign: 'center',
         marginBottom: '3em'
       }}>
         <p style={{
-          fontSize: '1.2em',
+          fontSize: '0.75em',
           fontWeight: 300,
-          letterSpacing: '1px',
-          marginBottom: '2em',
-          color: textColor
+          letterSpacing: '3px',
+          marginBottom: '1.8em',
+          color: accentColor,
+          textTransform: 'uppercase'
         }}>
           How are you, really?
         </p>
@@ -547,7 +673,7 @@ function App() {
           gap: '1em',
           marginBottom: '2em'
         }}>
-          {Object.keys(quotes).map((m) => (
+          {Object.keys(quotePool).map((m) => (
             <button
               key={m}
               onClick={() => setMood(m)}
@@ -575,11 +701,7 @@ function App() {
           ))}
         </div>
 
-        <div style={{
-          width: '100%',
-          marginBottom: '2em'
-        }}>
-        </div>
+        <div style={{ width: '100%', marginBottom: '2em' }} />
 
         <button
           onClick={handleCheckIn}
